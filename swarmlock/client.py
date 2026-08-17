@@ -224,3 +224,67 @@ class Swarmlock:
     def lease(self, request: AcquireRequest, heartbeat: bool = True) -> AsyncLeaseContext:
         """Return an AsyncLeaseContext for use in 'async with' statements."""
         return AsyncLeaseContext(self, request, heartbeat=heartbeat)
+
+
+class SyncLeaseContext:
+    """
+    Synchronous Context Manager wrapper around AsyncLeaseContext for use in non-async code ('with').
+    """
+
+    def __init__(self, sync_client: SyncSwarmlock, request: AcquireRequest, heartbeat: bool = True) -> None:
+        self.sync_client = sync_client
+        self.request = request
+        self.heartbeat = heartbeat
+        self.async_ctx = self.sync_client.async_client.lease(request, heartbeat=heartbeat)
+
+    def __enter__(self) -> Lease:
+        return self.sync_client.run_sync(self.async_ctx.__aenter__())
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.sync_client.run_sync(self.async_ctx.__aexit__(exc_type, exc_val, exc_tb))
+
+
+class SyncSwarmlock:
+    """
+    Synchronous API client wrapper for Swarmlock.
+    Allows usage in synchronous threads/scripts without manual event loop management.
+    """
+
+    def __init__(
+        self,
+        backend: Union[str, SwarmlockBackendProtocol] = "in-process",
+        **backend_kwargs: Any,
+    ) -> None:
+        self.async_client = Swarmlock(backend=backend, **backend_kwargs)
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def run_sync(self, coro: Any) -> Any:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # If running inside an existing loop, execute via new thread or task runner
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(lambda: asyncio.run(coro)).result()
+        else:
+            return asyncio.run(coro)
+
+    def acquire(self, request: AcquireRequest) -> Lease:
+        return self.run_sync(self.async_client.acquire(request))
+
+    def release(self, request: Union[ReleaseRequest, Lease]) -> bool:
+        return self.run_sync(self.async_client.release(request))
+
+    def renew(self, request: RenewRequest) -> Lease:
+        return self.run_sync(self.async_client.renew(request))
+
+    def get_lease(self, resource: str) -> Optional[Lease]:
+        return self.run_sync(self.async_client.get_lease(resource))
+
+    def lease(self, request: AcquireRequest, heartbeat: bool = True) -> SyncLeaseContext:
+        """Return a SyncLeaseContext for use in synchronous 'with' statements."""
+        return SyncLeaseContext(self, request, heartbeat=heartbeat)
+

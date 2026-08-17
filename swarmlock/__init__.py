@@ -2,7 +2,7 @@
 Swarmlock — Distributed lock primitive for multi-agent swarm coordination.
 """
 
-from swarmlock.client import Swarmlock
+from swarmlock.client import Swarmlock, SyncSwarmlock, SyncLeaseContext
 from swarmlock.types import (
     AcquireRequest,
     Lease,
@@ -17,6 +17,8 @@ from swarmlock.types import (
 
 __all__ = [
     "Swarmlock",
+    "SyncSwarmlock",
+    "SyncLeaseContext",
     "AcquireRequest",
     "Lease",
     "ReleaseRequest",
