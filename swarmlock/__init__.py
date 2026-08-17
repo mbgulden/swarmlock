@@ -13,6 +13,7 @@ from swarmlock.types import (
     ReleaseRequest,
     RenewRequest,
     SwarmlockError,
+    WatchRequest,
 )
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "Lease",
     "ReleaseRequest",
     "RenewRequest",
+    "WatchRequest",
     "SwarmlockError",
     "LockConflictError",
     "LeaseAcquireError",

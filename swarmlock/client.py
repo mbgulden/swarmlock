@@ -221,6 +221,11 @@ class Swarmlock:
     async def get_lease(self, resource: str) -> Optional[Lease]:
         return await self.backend.get_lease(resource)
 
+    async def watch(self, request: WatchRequest) -> Any:
+        """Stream real-time lock events for a resource."""
+        async for event in self.backend.watch(request):
+            yield event
+
     def lease(self, request: AcquireRequest, heartbeat: bool = True) -> AsyncLeaseContext:
         """Return an AsyncLeaseContext for use in 'async with' statements."""
         return AsyncLeaseContext(self, request, heartbeat=heartbeat)

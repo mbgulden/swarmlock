@@ -12,19 +12,14 @@ def test_gro_4765_py_typed_file_exists():
     assert py_typed.exists(), "swarmlock/py.typed marker file missing"
 
 
-def test_gro_4766_watch_request_pruned_from_top_level_import():
+def test_gro_4766_watch_request_exported_in_v02():
     """
-    GRO-4766 Acceptance Test:
-    from swarmlock import WatchRequest raises ImportError.
-    from swarmlock.types import WatchRequest still works.
+    v0.2 Acceptance Test:
+    from swarmlock import WatchRequest is supported in v0.2.
     """
     import swarmlock
 
-    assert "WatchRequest" not in swarmlock.__all__
+    assert "WatchRequest" in swarmlock.__all__
 
-    with pytest.raises(ImportError):
-        from swarmlock import WatchRequest  # type: ignore
-
-    # Internal import from swarmlock.types works
-    from swarmlock.types import WatchRequest as InternalWatchRequest
-    assert InternalWatchRequest is not None
+    from swarmlock import WatchRequest
+    assert WatchRequest is not None

@@ -1,5 +1,5 @@
 """
-In-Process Lock Backend.
+In-Process Lock Backend with Real-Time Event Bus.
 """
 
 from __future__ import annotations
@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import Dict, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional, Set
 
 from swarmlock.protocol import SwarmlockBackendProtocol
 from swarmlock.types import (
@@ -19,23 +19,42 @@ from swarmlock.types import (
     LockConflictError,
     ReleaseRequest,
     RenewRequest,
+    WatchRequest,
 )
 
 
 class InProcessBackend(SwarmlockBackendProtocol):
     """
-    In-memory async lock backend with idempotency-key and reentrancy support.
+    In-memory async lock backend with idempotency-key, reentrancy, and watch() event streaming.
     """
 
     def __init__(self) -> None:
         self._leases: Dict[str, Lease] = {}
         self._lock = asyncio.Lock()
+        self._subscribers: Dict[str, Set[asyncio.Queue]] = {}
 
     def _prune_expired(self) -> None:
         now = time.time()
         expired = [res for res, lease in self._leases.items() if now >= lease.expires_at]
         for res in expired:
-            del self._leases[res]
+            lease = self._leases.pop(res)
+            self._publish_event("expire", res, lease.holder, lease_id=lease.lease_id)
+
+    def _publish_event(self, event_type: str, resource: str, holder: str, **extra: Any) -> None:
+        queues = self._subscribers.get(resource)
+        if queues:
+            payload = {
+                "event": event_type,
+                "resource": resource,
+                "holder": holder,
+                "timestamp": time.time(),
+                **extra,
+            }
+            for q in list(queues):
+                try:
+                    q.put_nowait(payload)
+                except asyncio.QueueFull:
+                    pass
 
     async def acquire(self, request: AcquireRequest) -> Lease:
         async with self._lock:
@@ -44,12 +63,10 @@ class InProcessBackend(SwarmlockBackendProtocol):
 
             if existing is not None and time.time() < existing.expires_at:
                 if existing.holder == request.holder:
-                    # Check Idempotency Key (GRO-4763 Fix)
                     if (
                         request.idempotency_key is not None
                         and existing.idempotency_key == request.idempotency_key
                     ):
-                        # Idempotent retry: Return existing lease unchanged without incrementing counter
                         return existing
 
                     if (
@@ -57,23 +74,21 @@ class InProcessBackend(SwarmlockBackendProtocol):
                         and request.idempotency_key is None
                         and getattr(existing, "trace_id", None) == request.trace_id
                     ):
-                        # Matching trace_id without explicit reentrant flag: treat as idempotent retry
                         return existing
 
-                    if request.reentrant:
-                        existing.acquisition_count += 1
-                        existing.expires_at = time.time() + request.ttl_seconds
-                        return existing
-
-                    # Reentrant hit without idempotency key or explicit reentrant flag:
-                    # To prevent counter bloat on network retries, check if idempotency_key matches
                     existing.acquisition_count += 1
                     existing.expires_at = time.time() + request.ttl_seconds
+                    self._publish_event(
+                        "acquire_reentrant",
+                        request.resource,
+                        request.holder,
+                        lease_id=existing.lease_id,
+                        count=existing.acquisition_count,
+                    )
                     return existing
                 else:
                     raise LockConflictError(request.resource, existing.holder)
 
-            # Create new lease
             now = time.time()
             lease = Lease(
                 lease_id=str(uuid.uuid4()),
@@ -90,6 +105,7 @@ class InProcessBackend(SwarmlockBackendProtocol):
                 setattr(lease, "trace_id", request.trace_id)
 
             self._leases[request.resource] = lease
+            self._publish_event("acquire", request.resource, request.holder, lease_id=lease.lease_id)
             return lease
 
     async def release(self, request: ReleaseRequest) -> bool:
@@ -110,9 +126,17 @@ class InProcessBackend(SwarmlockBackendProtocol):
 
             if existing.acquisition_count > 1:
                 existing.acquisition_count -= 1
+                self._publish_event(
+                    "release_reentrant",
+                    request.resource,
+                    request.holder,
+                    lease_id=existing.lease_id,
+                    remaining_count=existing.acquisition_count,
+                )
                 return True
 
             del self._leases[request.resource]
+            self._publish_event("release", request.resource, request.holder, lease_id=existing.lease_id)
             return True
 
     async def renew(self, request: RenewRequest) -> Lease:
@@ -128,6 +152,13 @@ class InProcessBackend(SwarmlockBackendProtocol):
 
             existing.expires_at = time.time() + request.extend_seconds
             existing.ttl_seconds = request.extend_seconds
+            self._publish_event(
+                "renew",
+                request.resource,
+                request.holder,
+                lease_id=existing.lease_id,
+                expires_at=existing.expires_at,
+            )
             return existing
 
     async def get_lease(self, resource: str) -> Optional[Lease]:
@@ -137,3 +168,20 @@ class InProcessBackend(SwarmlockBackendProtocol):
             if lease and time.time() < lease.expires_at:
                 return lease
             return None
+
+    async def watch(self, request: WatchRequest) -> AsyncGenerator[dict[str, Any], None]:
+        q: asyncio.Queue = asyncio.Queue(maxsize=100)
+        if request.resource not in self._subscribers:
+            self._subscribers[request.resource] = set()
+        self._subscribers[request.resource].add(q)
+
+        try:
+            while True:
+                event = await q.get()
+                if not request.events or event.get("event") in request.events or event.get("event", "").startswith(tuple(request.events)):
+                    yield event
+        finally:
+            if request.resource in self._subscribers:
+                self._subscribers[request.resource].discard(q)
+                if not self._subscribers[request.resource]:
+                    del self._subscribers[request.resource]

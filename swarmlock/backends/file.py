@@ -176,3 +176,30 @@ class FileBackend(SwarmlockBackendProtocol):
         if raw and time.time() < raw["expires_at"]:
             return self._dict_to_lease(raw)
         return None
+
+    async def watch(self, request: WatchRequest) -> AsyncGenerator[dict[str, Any], None]:
+        """Watch lock events by polling file state changes."""
+        last_lease_id = None
+        while True:
+            lease = await self.get_lease(request.resource)
+            current_id = lease.lease_id if lease else None
+
+            if current_id != last_lease_id:
+                if lease:
+                    yield {
+                        "event": "acquire",
+                        "resource": request.resource,
+                        "holder": lease.holder,
+                        "lease_id": lease.lease_id,
+                        "timestamp": time.time(),
+                    }
+                else:
+                    yield {
+                        "event": "release",
+                        "resource": request.resource,
+                        "holder": request.holder,
+                        "timestamp": time.time(),
+                    }
+                last_lease_id = current_id
+
+            await asyncio.sleep(0.1)

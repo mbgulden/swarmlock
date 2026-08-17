@@ -33,12 +33,9 @@ class SwarmlockBackendProtocol(ABC):
         """Fetch current active lease for resource, if any."""
         pass
 
+    @abstractmethod
     async def watch(self, request: WatchRequest) -> AsyncGenerator[dict[str, Any], None]:
         """
         Watch event stream for resource lock state changes.
-
-        Note: Real-time event streaming is slated for v0.2. Calling watch()
-        in v0.1 raises NotImplementedError.
         """
-        raise NotImplementedError("watch() event streaming is on the roadmap for Swarmlock v0.2")
-        yield {}
+        pass

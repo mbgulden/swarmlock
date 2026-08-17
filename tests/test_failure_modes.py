@@ -34,6 +34,10 @@ class FlakyBackend(SwarmlockBackendProtocol):
     async def get_lease(self, resource: str):
         return await self._inner.get_lease(resource)
 
+    async def watch(self, request):
+        async for event in self._inner.watch(request):
+            yield event
+
 
 def test_gro_4762_heartbeat_survives_transient_error():
     """
