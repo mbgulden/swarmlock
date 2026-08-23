@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Antigravity Post-Read Tool Invocation Hook for SwarmLock v2.
 Automatically tracks baseline file versions when an agent reads/inspects code.

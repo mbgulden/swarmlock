@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Antigravity Pre-Tool Invocation Hook for SwarmLock v2.
 Intercepts write_to_file and replace_file_content to enforce atomic locking and MVCC stale-read checks.

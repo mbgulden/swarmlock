@@ -1,4 +1,4 @@
-﻿"""
+"""
 Hierarchical Intent Lock Tree and MVCC Version Vector Store.
 Supports IS (Optimistic Intent Shared), IX (Intent Exclusive), S (Pessimistic Shared Read), and X (Exclusive Write).
 Enforces hierarchical version propagation from parent directory mutations to children.
@@ -182,7 +182,7 @@ class HierarchyLockEngine:
         self._purge_expired()
         initial_len = len(self._locks)
         if lock_id:
-            self._locks = [l for l in self._locks if not (l.lock_id == lock_id and l.holder == holder)]
+            self._locks = [l for l in self._locks if l.lock_id != lock_id]
         elif resource:
             self._locks = [l for l in self._locks if not (l.resource.path == resource.path and l.holder == holder)]
         else:

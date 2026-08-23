@@ -1,4 +1,4 @@
-﻿"""
+"""
 High-Throughput Async IPC Daemon for SwarmLock (swarmlockd) v2.
 Serves Unix Domain Sockets, Windows Named Pipes, and Tailscale TCP.
 Supports 2-Phase Validation State Machine (VALIDATING, COMMITTED, REVERTED) and tx_id grouping.

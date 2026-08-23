@@ -1,4 +1,4 @@
-﻿"""
+"""
 IPC-Backed Lock Backend for SwarmLock.
 Connects to local swarmlockd daemon over Unix domain socket or Tailscale TCP.
 """

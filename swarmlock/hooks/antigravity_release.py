@@ -1,46 +1,15 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-Antigravity Post-Tool Invocation Hook for SwarmLock v2 & SwarmProof Validation Barrier.
-Transitions lease to VALIDATING, executes swarmproof verification (if configured), and commits/releases.
+Unified Antigravity Post-Tool Invocation Hook for Swarm Suite.
+Chains SwarmLock (2PL) -> SwarmProof (Verification) -> SwarmGate (Attention Governor).
 """
 
 import json
 import os
-import socket
 import subprocess
 import sys
 
 SOCKET_PATH = "/tmp/swarmlock.sock"
-
-
-def send_ipc(req: dict) -> dict:
-    if not os.path.exists(SOCKET_PATH):
-        return {"status": "NO_DAEMON"}
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-            client.settimeout(2.0)
-            client.connect(SOCKET_PATH)
-            client.sendall(json.dumps(req).encode("utf-8") + b"\n")
-            line = client.recv(8192)
-            if line:
-                return json.loads(line.decode("utf-8").strip())
-    except Exception:
-        pass
-    return {"status": "ERROR"}
-
-
-def run_swarmproof_barrier(target_file: str) -> bool:
-    """
-    Validation Barrier: If swarmproof is available, run AST & type check before lock release.
-    """
-    swarmproof_bin = "/home/ubuntu/.local/bin/swarmproof"
-    if os.path.exists(swarmproof_bin):
-        try:
-            res = subprocess.run([swarmproof_bin, "verify", target_file], capture_output=True, timeout=5.0)
-            return res.returncode == 0
-        except Exception:
-            return True
-    return True
 
 
 def main():
@@ -52,28 +21,54 @@ def main():
     tool_name = payload.get("tool_name") or payload.get("name")
     args = payload.get("arguments", {})
     agent_id = os.environ.get("AGENT_ID") or payload.get("conversation_id", "default_agent")
+    tx_id = os.environ.get("SWARM_TX_ID")
 
     target_file = args.get("TargetFile") or args.get("target_file") or args.get("path")
     if not target_file:
         sys.exit(0)
 
     if tool_name in ["write_to_file", "replace_file_content"]:
-        # 1. Transition to VALIDATING
-        send_ipc({
-            "action": "VALIDATE",
-            "resource": f"file:{target_file}",
-            "holder": agent_id
-        })
+        # 1. Execute SwarmProof Multi-Oracle Verification
+        swarmproof_bin = "/home/ubuntu/.local/bin/swarmproof"
+        proof_id = None
 
-        # 2. Run SwarmProof verification barrier
-        is_sound = run_swarmproof_barrier(target_file)
+        if os.path.exists(swarmproof_bin):
+            try:
+                res = subprocess.run(
+                    [swarmproof_bin, "check", target_file, "--json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10.0
+                )
+                if res.returncode != 0:
+                    # Verification failed: swarmproof already signaled REVERT
+                    print(res.stdout or res.stderr)
+                    sys.exit(1)
+                data = json.loads(res.stdout.strip())
+                proof_id = data.get("proof", {}).get("proof_id")
+            except Exception:
+                pass
 
-        # 3. Commit or Revert & Release
-        send_ipc({
-            "action": "COMMIT" if is_sound else "REVERT",
-            "resource": f"file:{target_file}",
-            "holder": agent_id
-        })
+        # 2. Evaluate Escalation Score with SwarmGate
+        swarmgate_bin = "/home/ubuntu/.local/bin/swarmgate"
+        if os.path.exists(swarmgate_bin):
+            try:
+                eval_cmd = [swarmgate_bin, "evaluate", target_file, "--agent", agent_id, "--json"]
+                if proof_id:
+                    eval_cmd.extend(["--proof", proof_id])
+                if tx_id:
+                    eval_cmd.extend(["--tx-id", tx_id])
+
+                res_gate = subprocess.run(eval_cmd, capture_output=True, text=True, timeout=10.0)
+                gate_data = json.loads(res_gate.stdout.strip())
+                tier = gate_data.get("tier")
+
+                if tier == "TIER_3_BARRIER":
+                    msg = f"🛑 SWARMGATE TIER 3 BARRIER: High-risk mutation on {target_file} suspended for operator approval.\nReview at http://100.83.32.92:8999 or run 'swarmgate review'."
+                    print(json.dumps({"status": "SUSPENDED", "message": msg}))
+                    sys.exit(2)
+            except Exception:
+                pass
 
     sys.exit(0)
 

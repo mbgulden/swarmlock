@@ -1,4 +1,4 @@
-﻿"""
+"""
 Durable Monotonic Fencing Token Generator.
 Guarantees strictly increasing 64-bit sequence counters across daemon restarts and crashes.
 """

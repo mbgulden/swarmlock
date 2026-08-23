@@ -1,4 +1,4 @@
-﻿"""
+"""
 Semantic Diff Engine for MVCC Stale-Read Conflict Rejections.
 Generates unified diffs between base_version and current_version snapshots.
 """

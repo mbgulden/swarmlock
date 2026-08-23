@@ -1,4 +1,4 @@
-﻿"""
+"""
 Swarmlock Types & Data Models v2.
 """
 

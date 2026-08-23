@@ -1,4 +1,4 @@
-﻿"""
+"""
 Swarmlock Client & Context Managers v2.
 """
 

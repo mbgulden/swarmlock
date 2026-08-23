@@ -1,4 +1,4 @@
-﻿"""
+"""
 Directed Acyclic Wait-For Graph (DAG) Deadlock Arbiter.
 Dynamically detects circular wait dependencies and preempts the lower-priority victim.
 """

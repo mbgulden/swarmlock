@@ -1,4 +1,4 @@
-﻿"""
+"""
 Swarmlock Command Line Interface (CLI) v2.
 """
 
