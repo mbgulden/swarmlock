@@ -1,7 +1,7 @@
 ﻿"""
-High-Throughput Async IPC Daemon for SwarmLock (swarmlockd).
+High-Throughput Async IPC Daemon for SwarmLock (swarmlockd) v2.
 Serves Unix Domain Sockets, Windows Named Pipes, and Tailscale TCP.
-Coordinates Durable Fencing, Hierarchical MVCC, Deadlock DAG, and Semantic Diffs.
+Supports 2-Phase Validation State Machine (VALIDATING, COMMITTED, REVERTED) and tx_id grouping.
 """
 
 from __future__ import annotations
@@ -9,16 +9,31 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
 import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from swarmlock.deadlock import DeadlockGraphArbiter
 from swarmlock.diff_engine import SemanticDiffEngine
 from swarmlock.fencing import DurableFencingTokenGenerator
 from swarmlock.hierarchy import HierarchyLockEngine, LockMode, ResourceKey
+from swarmlock.types import LeaseState
+
+
+def get_tailscale_ip() -> str:
+    """Attempt to discover Tailscale IPv4 address (100.x.y.z)."""
+    try:
+        res = subprocess.run(["tailscale", "ip", "-4"], capture_output=True, text=True, timeout=2.0)
+        if res.returncode == 0:
+            ip = res.stdout.strip().splitlines()[0].strip()
+            if ip.startswith("100."):
+                return ip
+    except Exception:
+        pass
+    return "127.0.0.1"
 
 
 class SwarmlockDaemon:
@@ -26,7 +41,7 @@ class SwarmlockDaemon:
         self,
         socket_path: Optional[str | Path] = None,
         tcp_port: Optional[int] = None,
-        tcp_host: str = "0.0.0.0",
+        tcp_host: Optional[str] = None,
         db_path: Optional[str | Path] = None
     ):
         if socket_path is None:
@@ -38,11 +53,17 @@ class SwarmlockDaemon:
             self.socket_path = str(socket_path)
 
         self.tcp_port = tcp_port
-        self.tcp_host = tcp_host
+        if tcp_host is None or tcp_host in ["0.0.0.0", "tailscale"]:
+            self.tcp_host = get_tailscale_ip()
+        else:
+            self.tcp_host = tcp_host
 
         self.fencing = DurableFencingTokenGenerator(db_path=db_path)
         self.hierarchy = HierarchyLockEngine()
         self.deadlock = DeadlockGraphArbiter()
+
+        # Map lock_id -> extra metadata (state, tx_id, trace_id)
+        self._lease_states: Dict[str, Dict[str, Any]] = {}
 
         self._running = False
         self._server: Optional[asyncio.AbstractServer] = None
@@ -85,9 +106,11 @@ class SwarmlockDaemon:
         holder = req.get("holder") or req.get("agent_id", "anonymous")
         ttl = float(req.get("ttl", 60.0))
         lock_id = req.get("lock_id") or str(uuid.uuid4())
+        tx_id = req.get("tx_id")
+        trace_id = req.get("trace_id")
 
         if action == "PING":
-            return {"status": "PONG", "timestamp": time.time()}
+            return {"status": "PONG", "timestamp": time.time(), "tailscale_host": self.tcp_host}
 
         if action in ["ACQUIRE_READ", "READ_LEASE"]:
             r_key = ResourceKey.parse(resource_str)
@@ -113,11 +136,17 @@ class SwarmlockDaemon:
                     "holder": conflict.holder,
                     "version": ver
                 }
+            self._lease_states[lock_id] = {
+                "state": LeaseState.ACQUIRED.value,
+                "tx_id": tx_id,
+                "trace_id": trace_id
+            }
             return {
                 "status": "GRANTED",
                 "lock_id": lock_id,
                 "fence_token": token,
                 "version": ver,
+                "state": LeaseState.ACQUIRED.value,
                 "resource": str(r_key)
             }
 
@@ -173,15 +202,31 @@ class SwarmlockDaemon:
             if req.get("new_content"):
                 self.hierarchy.record_snapshot(r_key, req.get("new_content"))
 
+            self._lease_states[lock_id] = {
+                "state": LeaseState.ACQUIRED.value,
+                "tx_id": tx_id,
+                "trace_id": trace_id,
+                "resource": str(r_key),
+                "holder": holder
+            }
+
             return {
                 "status": "GRANTED",
                 "lock_id": lock_id,
                 "fence_token": token,
                 "version": new_version,
+                "state": LeaseState.ACQUIRED.value,
                 "resource": str(r_key)
             }
 
-        elif action in ["RELEASE", "UNLOCK"]:
+        elif action == "VALIDATE":
+            # 2PL State transition: ACQUIRED -> VALIDATING
+            if lock_id in self._lease_states:
+                self._lease_states[lock_id]["state"] = LeaseState.VALIDATING.value
+                return {"status": "VALIDATING", "lock_id": lock_id}
+            return {"status": "NOT_FOUND", "lock_id": lock_id}
+
+        elif action in ["RELEASE", "UNLOCK", "COMMIT"]:
             r_key = ResourceKey.parse(resource_str) if resource_str else None
             clean_lid = req.get("lock_id")
             if not clean_lid or clean_lid == "":
@@ -189,11 +234,29 @@ class SwarmlockDaemon:
             released = self.hierarchy.release_lock(clean_lid, holder, r_key)
             if r_key:
                 self.deadlock.record_release(str(r_key), holder)
+            if clean_lid and clean_lid in self._lease_states:
+                del self._lease_states[clean_lid]
             return {
                 "status": "RELEASED" if released else "NOT_HELD",
                 "lock_id": lock_id,
                 "resource": str(r_key) if r_key else ""
             }
+
+        elif action == "RELEASE_ALL_BY_TX":
+            # SwarmSaga abort / commit: release all locks matching tx_id
+            target_tx = req.get("tx_id")
+            released_count = 0
+            for lid, info in list(self._lease_states.items()):
+                if info.get("tx_id") == target_tx:
+                    res_str = info.get("resource")
+                    h = info.get("holder", holder)
+                    rk = ResourceKey.parse(res_str) if res_str else None
+                    self.hierarchy.release_lock(lid, h, rk)
+                    if rk:
+                        self.deadlock.record_release(str(rk), h)
+                    del self._lease_states[lid]
+                    released_count += 1
+            return {"status": "RELEASED", "tx_id": target_tx, "released_count": released_count}
 
         elif action == "STATUS":
             active = self.hierarchy.get_active_locks()
@@ -207,11 +270,15 @@ class SwarmlockDaemon:
                         "mode": l.mode.value,
                         "fence_token": l.fence_token,
                         "version": l.version,
+                        "state": self._lease_states.get(l.lock_id, {}).get("state", LeaseState.ACQUIRED.value),
+                        "tx_id": self._lease_states.get(l.lock_id, {}).get("tx_id"),
+                        "trace_id": self._lease_states.get(l.lock_id, {}).get("trace_id"),
                         "remaining_seconds": max(0.0, l.expires_at - time.time())
                     }
                     for l in active
                 ],
-                "current_fence_token": self.fencing.current_token
+                "current_fence_token": self.fencing.current_token,
+                "tailscale_ip": self.tcp_host
             }
 
         return {"status": "UNKNOWN_ACTION", "action": action}

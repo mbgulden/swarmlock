@@ -1,5 +1,5 @@
-"""
-Swarmlock Types & Data Models.
+﻿"""
+Swarmlock Types & Data Models v2.
 """
 
 from __future__ import annotations
@@ -7,7 +7,15 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Dict, List, Optional
+
+
+class LeaseState(str, Enum):
+    ACQUIRED = "ACQUIRED"      # Lock held for mutation
+    VALIDATING = "VALIDATING"  # Lock held in 2-phase validation barrier (swarmproof)
+    COMMITTED = "COMMITTED"    # Successfully validated and committed
+    REVERTED = "REVERTED"      # Validation failed, changes reverted
 
 
 class SwarmlockError(Exception):
@@ -27,6 +35,10 @@ class LockConflictError(LeaseAcquireError):
         self.resource = resource
         self.current_holder = current_holder
 
+    @property
+    def holder(self) -> str:
+        return self.current_holder
+
 
 class LeaseExpiredError(SwarmlockError):
     """Raised when attempting an operation on an expired lease."""
@@ -45,8 +57,11 @@ class AcquireRequest:
     holder: str
     ttl_seconds: float = 60.0
     trace_id: Optional[str] = None
+    tx_id: Optional[str] = None
     idempotency_key: Optional[str] = None
     reentrant: bool = False
+    mode: str = "X"  # "IS", "IX", "S", "X"
+    expected_version: Optional[int] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -56,8 +71,13 @@ class Lease:
     lease_id: str
     resource: str
     holder: str
-    expires_at: float  # Unix timestamp in seconds
+    expires_at: float
     ttl_seconds: float
+    state: LeaseState = LeaseState.ACQUIRED
+    fence_token: Optional[int] = None
+    version: Optional[int] = None
+    tx_id: Optional[str] = None
+    trace_id: Optional[str] = None
     acquisition_count: int = 1
     idempotency_key: Optional[str] = None
     created_at: float = field(default_factory=time.time)
@@ -78,6 +98,16 @@ class ReleaseRequest:
     lease_id: str
     resource: str
     holder: str
+    tx_id: Optional[str] = None
+
+
+@dataclass
+class ValidateRequest:
+    """Request payload to transition a lease into VALIDATING state."""
+    lease_id: str
+    resource: str
+    holder: str
+    tx_id: Optional[str] = None
 
 
 @dataclass
@@ -91,10 +121,7 @@ class RenewRequest:
 
 @dataclass
 class WatchRequest:
-    """
-    Request payload for resource watch stream.
-    Note: Watch streaming is on the roadmap for v0.2.
-    """
+    """Request payload for resource watch stream."""
     resource: str
     holder: str
-    events: List[str] = field(default_factory=lambda: ["acquire", "release", "expire"])
+    events: List[str] = field(default_factory=lambda: ["acquire", "release", "expire", "validate", "commit"])
