@@ -7,7 +7,7 @@ name = "swarmlock"
 version = "0.2.0"
 description = "Distributed lock primitive for multi-agent swarm coordination"
 readme = "README.md"
-authors = [{ name = "Michael Gulden", email = "mbgulden@gmail.com" }]
+authors = [{ name = "Michael Gulden", email = "michael@growthwebdev.com" }]
 license = { text = "MIT" }
 requires-python = ">=3.9"
 classifiers = [
@@ -30,3 +30,6 @@ where = ["."]
 
 [tool.setuptools.package-data]
 swarmlock = ["py.typed"]
+
+[project.urls]
+Homepage = "https://github.com/mbgulden/swarmlock"
