@@ -1,0 +1,45 @@
+# Publish to PyPI via Trusted Publishing (OIDC) — no API token needed.
+#
+# One-time setup (per package, done by the repo owner on pypi.org):
+#   https://pypi.org/manage/account/publishing/ -> "Add a new pending publisher"
+#     PyPI Project Name: <this package's name, e.g. swarmmesh>
+#     Owner:             mbgulden
+#     Repository name:   <this repo's name, e.g. swarmmesh>
+#     Workflow name:     publish.yml        (this file's name — must match)
+#     Environment name:  (leave blank)
+# On the first successful run PyPI auto-creates the project and the pending
+# publisher becomes a trusted publisher. Every later release just works.
+#
+# Trigger: create a GitHub Release on the default branch; the workflow builds
+# the sdist + wheel and uploads them. The release tag SHOULD match the version
+# in pyproject.toml (e.g. tag "v0.1.0" for version 0.1.0).
+name: publish
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # required for PyPI Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tool
+        run: python -m pip install --upgrade pip build
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No username/password: authenticates via OIDC against the trusted
+        # publisher registered on PyPI for this project.
