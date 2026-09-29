@@ -7,13 +7,12 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
-from typing import Any, AsyncGenerator, Dict, List, Optional, Set
+from typing import Any, AsyncGenerator, Dict, Optional, Set
 
 from swarmlock.protocol import SwarmlockBackendProtocol
 from swarmlock.types import (
     AcquireRequest,
     Lease,
-    LeaseAcquireError,
     LeaseExpiredError,
     LeaseNotHeldError,
     LockConflictError,
