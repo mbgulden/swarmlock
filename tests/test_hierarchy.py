@@ -2,7 +2,6 @@
 Unit tests for HierarchyLockEngine and MVCC generation propagation.
 """
 
-import pytest
 from swarmlock.hierarchy import HierarchyLockEngine, LockMode, ResourceKey
 from swarmlock.diff_engine import SemanticDiffEngine
 
