@@ -3,7 +3,6 @@ API hygiene & packaging unit tests (GRO-4765 & GRO-4766).
 """
 
 from pathlib import Path
-import pytest
 
 
 def test_gro_4765_py_typed_file_exists():
