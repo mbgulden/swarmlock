@@ -5,7 +5,6 @@ Unit tests for DurableFencingTokenGenerator.
 import tempfile
 import threading
 from pathlib import Path
-import pytest
 from swarmlock.fencing import DurableFencingTokenGenerator
 
 

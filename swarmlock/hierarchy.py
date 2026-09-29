@@ -6,13 +6,12 @@ Enforces hierarchical version propagation from parent directory mutations to chi
 
 from __future__ import annotations
 
-import difflib
 import threading
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class LockMode(str, Enum):
@@ -135,7 +134,7 @@ class HierarchyLockEngine:
     def _purge_expired(self) -> None:
         # Caller must hold self._lock.
         now = time.time()
-        self._locks = [l for l in self._locks if l.expires_at > now]
+        self._locks = [lk for lk in self._locks if lk.expires_at > now]
 
     def check_conflict(self, resource: ResourceKey, mode: LockMode, holder: str) -> Optional[ActiveLock]:
         with self._lock:
@@ -229,11 +228,11 @@ class HierarchyLockEngine:
             self._purge_expired()
             initial_len = len(self._locks)
             if lock_id:
-                self._locks = [l for l in self._locks if l.lock_id != lock_id]
+                self._locks = [lk for lk in self._locks if lk.lock_id != lock_id]
             elif resource:
-                self._locks = [l for l in self._locks if not (l.resource.path == resource.path and l.holder == holder)]
+                self._locks = [lk for lk in self._locks if not (lk.resource.path == resource.path and lk.holder == holder)]
             else:
-                self._locks = [l for l in self._locks if l.holder != holder]
+                self._locks = [lk for lk in self._locks if lk.holder != holder]
             return len(self._locks) < initial_len
 
     def get_active_locks(self) -> List[ActiveLock]:

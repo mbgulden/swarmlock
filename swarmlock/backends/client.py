@@ -18,10 +18,6 @@ from swarmlock.protocol import SwarmlockBackendProtocol
 from swarmlock.types import (
     AcquireRequest,
     Lease,
-    LeaseAcquireError,
-    LeaseExpiredError,
-    LeaseNotHeldError,
-    LockConflictError,
     ReleaseRequest,
     RenewRequest,
 )

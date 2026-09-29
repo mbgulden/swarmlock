@@ -14,7 +14,6 @@ from swarmlock.protocol import SwarmlockBackendProtocol
 from swarmlock.types import (
     AcquireRequest,
     Lease,
-    LeaseAcquireError,
     LeaseExpiredError,
     LeaseNotHeldError,
     LockConflictError,
@@ -221,7 +220,7 @@ class RedisBackend(SwarmlockBackendProtocol):
                 raise LeaseExpiredError(f"Lease for '{request.resource}' expired")
             data = json.loads(val.decode("utf-8") if isinstance(val, bytes) else val)
             if data["holder"] != request.holder or data["lease_id"] != request.lease_id:
-                raise LeaseNotHeldError(f"Lease not held by caller")
+                raise LeaseNotHeldError("Lease not held by caller")
             data["expires_at"] = now + request.extend_seconds
             data["ttl_seconds"] = request.extend_seconds
             if hasattr(self._redis, "setex"):
@@ -232,7 +231,7 @@ class RedisBackend(SwarmlockBackendProtocol):
         if not existing or now >= existing["expires_at"]:
             raise LeaseExpiredError(f"Lease for '{request.resource}' expired")
         if existing["holder"] != request.holder or existing["lease_id"] != request.lease_id:
-            raise LeaseNotHeldError(f"Lease not held by caller")
+            raise LeaseNotHeldError("Lease not held by caller")
         existing["expires_at"] = now + request.extend_seconds
         existing["ttl_seconds"] = request.extend_seconds
         self._publish_fallback("renew", request.resource, request.holder)

@@ -3,8 +3,7 @@ TDD Tests for v0.2 Atomic Lua Scripts & Server-Side TTL in RedisBackend.
 """
 
 import asyncio
-import pytest
-from swarmlock import AcquireRequest, ReleaseRequest, RenewRequest
+from swarmlock import AcquireRequest
 from swarmlock.backends.redis_backend import RedisBackend
 
 

@@ -18,7 +18,6 @@ from swarmlock.types import (
     Lease,
     LeaseAcquireError,
     LeaseExpiredError,
-    LeaseNotHeldError,
     LockConflictError,
     ReleaseRequest,
     RenewRequest,
@@ -147,16 +146,16 @@ class IPCBackend(SwarmlockBackendProtocol):
     async def get_lease(self, resource: str) -> Optional[Lease]:
         res = await self._send_request({"action": "STATUS"})
         if res.get("status") == "OK":
-            for l in res.get("active_locks", []):
-                if l["resource"] == resource or l["resource"].endswith(f":{resource}"):
+            for lk in res.get("active_locks", []):
+                if lk["resource"] == resource or lk["resource"].endswith(f":{resource}"):
                     now = time.time()
                     return Lease(
-                        lease_id=l["lock_id"],
-                        resource=l["resource"],
-                        holder=l["holder"],
-                        expires_at=now + l["remaining_seconds"],
-                        ttl_seconds=l["remaining_seconds"],
-                        metadata={"fence_token": l["fence_token"], "version": l["version"]}
+                        lease_id=lk["lock_id"],
+                        resource=lk["resource"],
+                        holder=lk["holder"],
+                        expires_at=now + lk["remaining_seconds"],
+                        ttl_seconds=lk["remaining_seconds"],
+                        metadata={"fence_token": lk["fence_token"], "version": lk["version"]}
                     )
         return None
 

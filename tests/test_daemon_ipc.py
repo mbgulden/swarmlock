@@ -43,7 +43,6 @@ async def test_daemon_wire_protocol_e2e():
             read_resp = json.loads((await reader.readline()).decode())
             assert read_resp["status"] == "GRANTED"
             assert read_resp["version"] == 1
-            fence1 = read_resp["fence_token"]
 
             # 3. Agent 2 updates the file -> increments version to 2
             writer.write(json.dumps({

@@ -2,7 +2,6 @@
 Unit tests for DeadlockGraphArbiter and dynamic cycle preemption.
 """
 
-import pytest
 from swarmlock.deadlock import DeadlockGraphArbiter
 
 

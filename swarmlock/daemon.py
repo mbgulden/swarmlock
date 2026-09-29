@@ -10,11 +10,10 @@ import asyncio
 import json
 import os
 import subprocess
-import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from swarmlock.deadlock import DeadlockGraphArbiter
 from swarmlock.diff_engine import SemanticDiffEngine
@@ -264,18 +263,18 @@ class SwarmlockDaemon:
                 "status": "OK",
                 "active_locks": [
                     {
-                        "lock_id": l.lock_id,
-                        "holder": l.holder,
-                        "resource": str(l.resource),
-                        "mode": l.mode.value,
-                        "fence_token": l.fence_token,
-                        "version": l.version,
-                        "state": self._lease_states.get(l.lock_id, {}).get("state", LeaseState.ACQUIRED.value),
-                        "tx_id": self._lease_states.get(l.lock_id, {}).get("tx_id"),
-                        "trace_id": self._lease_states.get(l.lock_id, {}).get("trace_id"),
-                        "remaining_seconds": max(0.0, l.expires_at - time.time())
+                        "lock_id": lease.lock_id,
+                        "holder": lease.holder,
+                        "resource": str(lease.resource),
+                        "mode": lease.mode.value,
+                        "fence_token": lease.fence_token,
+                        "version": lease.version,
+                        "state": self._lease_states.get(lease.lock_id, {}).get("state", LeaseState.ACQUIRED.value),
+                        "tx_id": self._lease_states.get(lease.lock_id, {}).get("tx_id"),
+                        "trace_id": self._lease_states.get(lease.lock_id, {}).get("trace_id"),
+                        "remaining_seconds": max(0.0, lease.expires_at - time.time())
                     }
-                    for l in active
+                    for lease in active
                 ],
                 "current_fence_token": self.fencing.current_token,
                 "tailscale_ip": self.tcp_host

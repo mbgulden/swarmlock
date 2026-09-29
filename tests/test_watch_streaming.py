@@ -3,8 +3,7 @@ TDD Tests for v0.2 Event Streaming watch() Protocol.
 """
 
 import asyncio
-import pytest
-from swarmlock import AcquireRequest, ReleaseRequest, Swarmlock, WatchRequest
+from swarmlock import AcquireRequest, Swarmlock, WatchRequest
 
 
 def test_watch_request_top_level_import():

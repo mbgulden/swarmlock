@@ -10,7 +10,6 @@ import logging
 import os
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import List, Optional

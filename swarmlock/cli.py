@@ -12,10 +12,9 @@ import socket
 import subprocess
 import sys
 import time
-from pathlib import Path
 from typing import Optional
 
-from swarmlock import AcquireRequest, ReleaseRequest, RenewRequest, Swarmlock, LockConflictError
+from swarmlock import AcquireRequest, ReleaseRequest, Swarmlock
 from swarmlock.daemon import SwarmlockDaemon
 
 
@@ -41,6 +40,13 @@ def main() -> None:
         prog="swarmlock",
         description="Centralized distributed file & workspace locking CLI for multi-agent systems",
     )
+    try:
+        from importlib.metadata import version as _pkg_version
+
+        _cli_version = _pkg_version("swarmlock")
+    except Exception:
+        _cli_version = "unknown"
+    parser.add_argument("--version", action="version", version=f"swarmlock {_cli_version}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     # daemon
@@ -117,8 +123,8 @@ def main() -> None:
         else:
             print(f"  {'RESOURCE':<28} {'HOLDER':<18} {'MODE':<6} {'TOKEN':<10} {'REMAINING':<8}")
             print("  " + "-" * 66)
-            for l in locks:
-                print(f"  {l['resource']:<28} {l['holder']:<18} {l['mode']:<6} #{l['fence_token']:<9} {l['remaining_seconds']:.1f}s")
+            for lock in locks:
+                print(f"  {lock['resource']:<28} {lock['holder']:<18} {lock['mode']:<6} #{lock['fence_token']:<9} {lock['remaining_seconds']:.1f}s")
         print("=" * 70)
         sys.exit(0)
 
@@ -232,10 +238,10 @@ def main() -> None:
         ipc_res = send_ipc_command({"action": "STATUS"})
         if ipc_res:
             active = ipc_res.get("active_locks", [])
-            match = [l for l in active if l["resource"] == args.resource]
+            match = [lock for lock in active if lock["resource"] == args.resource]
             if match:
-                l = match[0]
-                print(f"🔒 Resource '{args.resource}' is LOCKED by '{l['holder']}' (Mode: {l['mode']}, Fence: #{l['fence_token']}, Remaining: {l['remaining_seconds']:.1f}s)")
+                m = match[0]
+                print(f"🔒 Resource '{args.resource}' is LOCKED by '{m['holder']}' (Mode: {m['mode']}, Fence: #{m['fence_token']}, Remaining: {m['remaining_seconds']:.1f}s)")
             else:
                 print(f"🔓 Resource '{args.resource}' is FREE (no active lease)")
             sys.exit(0)

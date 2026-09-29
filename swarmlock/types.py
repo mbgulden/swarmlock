@@ -5,7 +5,6 @@ Swarmlock Types & Data Models v2.
 from __future__ import annotations
 
 import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional

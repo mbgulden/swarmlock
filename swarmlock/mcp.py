@@ -6,18 +6,14 @@ Exposes SwarmLock, SwarmProof, SwarmGate, SwarmSaga, and SwarmLedger to any MCP-
 
 from __future__ import annotations
 
-import asyncio
 import json
-import os
 import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from swarmgate.bridge import SwarmgateBridge
 from swarmgate.evaluator import EscalationEvaluator
-from swarmledger.core.node import EventType
 from swarmledger.storage.auditor import CryptographicAuditor
 from swarmledger.storage.engine import StorageEngine
 from swarmlock.hierarchy import HierarchyLockEngine, LockMode, ResourceKey
