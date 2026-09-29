@@ -5,7 +5,6 @@ Guarantees strictly increasing 64-bit sequence counters across daemon restarts a
 
 from __future__ import annotations
 
-import os
 import sqlite3
 import threading
 import time
