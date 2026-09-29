@@ -6,9 +6,7 @@ import asyncio
 import pytest
 from swarmlock import (
     AcquireRequest,
-    Lease,
     LockConflictError,
-    ReleaseRequest,
     RenewRequest,
     Swarmlock,
 )
