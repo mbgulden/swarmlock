@@ -3,8 +3,6 @@ Failure mode & resiliency unit tests (GRO-4762 & GRO-4763).
 """
 
 import asyncio
-import time
-import pytest
 from swarmlock import AcquireRequest, ReleaseRequest, RenewRequest, Swarmlock
 from swarmlock.client import HeartbeatController
 from swarmlock.protocol import SwarmlockBackendProtocol
