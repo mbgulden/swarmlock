@@ -2,9 +2,7 @@
 Unit tests for SyncSwarmlock wrapper and CLI entrypoint.
 """
 
-import subprocess
-import pytest
-from swarmlock import AcquireRequest, SyncSwarmlock, Swarmlock
+from swarmlock import AcquireRequest, SyncSwarmlock
 
 
 def test_sync_swarmlock_acquire_and_release():
