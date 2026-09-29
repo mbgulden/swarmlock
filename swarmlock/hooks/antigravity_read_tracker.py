@@ -55,7 +55,6 @@ def main():
     except Exception:
         sys.exit(0)
 
-    tool_name = payload.get("tool_name") or payload.get("name")
     args = payload.get("arguments", {})
     agent_id = os.environ.get("AGENT_ID") or payload.get("conversation_id", "default_agent")
 
