@@ -10,7 +10,7 @@ import time
 import pytest
 from pathlib import Path
 
-from swarmlock import AcquireRequest, ReleaseRequest, RenewRequest, Swarmlock, SyncSwarmlock, LockConflictError
+from swarmlock import AcquireRequest, Swarmlock, SyncSwarmlock, LockConflictError
 from swarmlock.daemon import SwarmlockDaemon
 
 
