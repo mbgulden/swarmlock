@@ -2,7 +2,6 @@
 Unit tests for Re-entrancy, AST symbol locking, and edge cases.
 """
 
-import pytest
 from swarmlock.hierarchy import HierarchyLockEngine, LockMode, ResourceKey
 
 
