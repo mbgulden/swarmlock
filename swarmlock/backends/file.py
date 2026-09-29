@@ -4,23 +4,24 @@ File-Backed Lock Backend.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 
 from swarmlock.protocol import SwarmlockBackendProtocol
 from swarmlock.types import (
     AcquireRequest,
     Lease,
-    LeaseAcquireError,
     LeaseExpiredError,
     LeaseNotHeldError,
     LockConflictError,
     ReleaseRequest,
     RenewRequest,
+    WatchRequest,
 )
 
 
